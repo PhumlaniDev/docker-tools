@@ -1,0 +1,37 @@
+services:
+  traefik:
+    image: traefik:v3.6.5
+    container_name: traefik
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    command:
+      - "--configFile=/traefik.yml"
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./certs:/certs:ro
+      - ./letsencrypt:/letsencrypt
+      - ./logs:/logs
+    networks:
+      - tunnel-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.tls.certresolver=staging"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_USER}:${TRAEFIK_PASSWORD}"
+
+networks:
+  proxy-net:
+    external: true
+    name: proxy-net
+  tunnel-net:
+    external: true
+    name: tunnel-net

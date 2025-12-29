@@ -1,0 +1,108 @@
+services:
+  unbound-redis:
+    image: redis:latest
+    container_name: unbound-redis
+    restart: unless-stopped
+    volumes:
+      - ./redis/data:/data
+    networks:
+      - net_sec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  unbound:
+    image: mvance/unbound:1.21.1
+    container_name: unbound
+    restart: unless-stopped
+    depends_on:
+      unbound-redis:
+        condition: service_healthy
+    networks:
+      net_sec:
+        ipv4_address: 172.16.81.10
+    volumes:
+      - ./unbound/config:/etc/unbound/custom.conf.d:ro
+    ports:
+      - "533:53/tcp" # Host port for testing; adjust if needed
+      - "533:53/udp"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "drill", "@127.0.0.1", "example.com"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  adguard:
+    image: adguard/adguardhome:v0.108.0-b.79
+    container_name: adguard
+    restart: unless-stopped
+    depends_on:
+      unbound:
+        condition: service_healthy
+    networks:
+      net_sec:
+        ipv4_address: 172.16.81.11
+    volumes:
+      - ./adguard/work:/opt/adguardhome/work
+      - ./adguard/conf:/opt/adguardhome/conf
+    ports:
+      - "8053:53/tcp" # DNS
+      - "8053:53/udp"
+      - "3001:3000/tcp" # Initial setup web interface
+      - "8082:80/tcp" # HTTP for admin (change to HTTPS in production)
+      - "443:443/tcp" # HTTPS for admin
+      - "853:853/tcp" # DNS-over-TLS
+      - "853:853/udp" # DNS-over-QUIC (optional)
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  wireguard:
+    image: linuxserver/wireguard:1.0.20250521
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000 # Your user ID for file permissions
+      - PGID=1000 # Your group ID
+      - TZ=Etc/UTC # Adjust to your timezone, e.g., America/New_York
+      - SERVERURL=auto # Or your public IP/domain for client configs
+      - SERVERPORT=51820
+      - PEERS=5 # Number of initial client configs to generate
+      - PEERDNS=172.16.81.11 # AdGuard Home's static IP
+      - INTERNAL_SUBNET=10.6.0.0 # WireGuard client subnet (avoid conflicts)
+      - ALLOWEDIPS=0.0.0.0/0 # Full tunnel; change to 172.16.81.0/24 for split-tunnel DNS only
+      - LOG_CONFS=true # Log generated configs
+    volumes:
+      - ./wireguard/config:/config
+      - /lib/modules:/lib/modules:ro # For kernel modules if needed
+    ports:
+      - "51820:51820/udp" # WireGuard port (forward this in your router/firewall)
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    depends_on:
+      adguard:
+        condition: service_healthy
+    networks:
+      - net_sec
+    healthcheck:
+      test: ["CMD-SHELL", "wg show | grep interface || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  net_sec:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.81.0/24

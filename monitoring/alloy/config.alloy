@@ -1,0 +1,20 @@
+// Loki configuration for log forwarding
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  external_labels = {}
+}
+
+// Discover running Docker containers
+discovery.docker "services" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "30s"
+}
+
+// Scrape logs from those containers
+loki.source.docker "services_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.services.targets
+  forward_to = [loki.write.default.receiver]
+}

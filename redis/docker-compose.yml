@@ -1,0 +1,30 @@
+services:
+  redis:
+    image: redis:7.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,dev
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    user: "1001:1001"  # Use non-root user (you can create this UID in Dockerfile if needed)
+    networks:
+      - microservices-net
+
+volumes:
+  redis-data:
+    name: redis-data
+
+networks:
+  microservices-net:
+    name: microservices-net
+    external: true

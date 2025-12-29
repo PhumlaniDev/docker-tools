@@ -1,0 +1,45 @@
+# docker-compose.yml  (place it in the same folder as your other stacks or standalone)
+services:
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    command: >
+      --schedule "0 30 3 * * *"
+      --cleanup
+      --include-restarting
+      --no-restart
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - watchtower-data:/config
+      - /etc/localtime:/etc/localtime:ro # sync timezone
+
+    environment:
+      TZ: "Africa/Johannesburg"
+
+      # === Discord via Slack ===
+      WATCHTOWER_NOTIFICATIONS: "slack"
+      WATCHTOWER_NOTIFICATIONS_LEVEL: trace
+      WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL: "https://discord.com/api/webhooks/1441829817807933635/hlDWtOs7tgq632sPkxjwbuxQFRuJAow85ApMqdQqYYRccNNfYgWXSgl_F0xOhf9Ek34U" # ← paste yours here
+      WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER: "Watchtower" # Optional: Friendly name in Discord
+      WATCHTOWER_NOTIFICATION_SLACK_CHANNEL: "default" # Optional: Override channel
+
+      # Report only when updates happen (not every run)
+      WATCHTOWER_NOTIFICATION_REPORT_ONLY: "true"
+
+      # Optional: Custom template for fancier messages (Go template)
+      WATCHTOWER_NOTIFICATION_TEMPLATE: '{{range .}}{{.Time.Format "2006-01-02 15:04:05"}} ({{.Level}}): {{.Message}}\n{{end}}'
+
+      # Optional: limit update speed (be nice to Docker Hub)
+      WATCHTOWER_POLL_INTERVAL: "86400" # 24h (redundant with schedule, but safe)
+
+    # Light resource limits (Watchtower barely uses anything)
+    mem_limit: 128m
+    cpus: "0.25"
+
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  watchtower-data:

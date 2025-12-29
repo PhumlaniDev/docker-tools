@@ -1,0 +1,31 @@
+services:
+  portainer:
+    container_name: portainer
+    image: docker.io/portainer/portainer-ce:latest
+    ports:
+      - 9000:9000
+      - 9443:9443
+    volumes:
+      - /run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+      - /etc/localtime:/etc/localtime:ro
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=Africa/Johannesburg
+    restart: unless-stopped
+    networks:
+      - frontend
+
+volumes:
+  portainer-data:
+    name: portainer-data
+    driver: local
+
+networks:
+  frontend:
+    name: frontend
+    driver: bridge
+  backend:
+    name: backend
+    driver: bridge

@@ -1,0 +1,48 @@
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: "0.5"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dozzle-data:/data
+
+    environment:
+      - DOZZLE_LEVEL=warn
+      - TZ=Africa/Johannesburg
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy-net"
+
+      - "traefik.http.routers.dozzle.rule=Host(`dozzle.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.dozzle.entrypoints=websecure"
+      - "traefik.http.routers.dozzle.tls=true"
+
+      - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
+
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 3s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - proxy-net
+
+volumes:
+  dozzle-data:
+
+networks:
+  proxy-net:
+    external: true
+    name: proxy-net
