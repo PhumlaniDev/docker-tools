@@ -6,13 +6,26 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
       - --storage.tsdb.retention.size=10GB
-    ports:
-      - "9090:9090"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=staging" # Your resolver name
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -21,13 +34,18 @@ services:
     restart: unless-stopped
     networks:
       - microservices-net
+      - proxy-net
 
   loki:
     image: grafana/loki:3.5.1
     container_name: loki
     command: -config.file=/etc/loki/local-config.yml
-    ports:
-      - "3100:3100"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`loki.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls.certresolver=staging"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
     volumes:
       - ./loki/loki-local-config.yml:/etc/loki/local-config.yml:ro
       - loki-data:/loki
@@ -39,6 +57,7 @@ services:
     restart: unless-stopped
     networks:
       - microservices-net
+      - proxy-net
 
   alloy:
     image: grafana/alloy:v1.9.0
@@ -48,8 +67,12 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy
       - /etc/alloy/config.alloy
-    ports:
-      - "12345:12345"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alloy.rule=Host(`alloy.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.alloy.entrypoints=websecure"
+      - "traefik.http.routers.alloy.tls.certresolver=staging"
+      - "traefik.http.services.alloy.loadbalancer.server.port=12345"
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
       - alloy-data:/var/lib/alloy-data
@@ -66,8 +89,17 @@ services:
     restart: unless-stopped
     networks:
       - microservices-net
+      - proxy-net
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:12345/-/ready"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:12345/-/ready",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -76,8 +108,12 @@ services:
   grafana:
     image: grafana/grafana:12.0.2
     container_name: grafana
-    ports:
-      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=staging"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -86,7 +122,13 @@ services:
     volumes:
       - grafana-storage:/var/lib/grafana
     healthcheck:
-      test: ["CMD", "sh", "-c", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,8 +136,9 @@ services:
     restart: unless-stopped
     networks:
       - microservices-net
+      - proxy-net
 
-
+  cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
     ports:
@@ -128,6 +171,9 @@ services:
 networks:
   microservices-net:
     name: microservices-net
+    external: true
+  proxy-net:
+    name: "proxy-net"
     external: true
 
 volumes:
