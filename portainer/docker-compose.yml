@@ -17,9 +17,11 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer.rule=Host(`portainer.phumlaniarendse.co.za`)"
       - "traefik.http.routers.portainer.entrypoints=websecure"
-      # - "traefik.http.routers.portainer.tls=true"
+      - "traefik.http.routers.portainer.service=portainer"
+      - "traefik.http.routers.portainer.tls=true"
       - "traefik.http.routers.portainer.tls.certresolver=staging"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+      - "traefik.docker.network=proxy-net"
 
 volumes:
   portainer-data:

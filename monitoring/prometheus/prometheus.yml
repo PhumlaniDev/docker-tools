@@ -7,4 +7,4 @@ scrape_configs:
       - targets: ["loki:3100"]
   - job_name: "node_exporter"
     static_configs:
-      - targets: ["node_exporter:9100"]
+      - targets: ["host.docker.internal:9100"]

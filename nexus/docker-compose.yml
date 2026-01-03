@@ -2,20 +2,34 @@ services:
   nexus:
     image: sonatype/nexus3:latest
     container_name: nexus
-    ports:
-      - "8081:8081"
-      - "5000:5000"
     volumes:
       - ./nexus-data:/nexus-data
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nexus.rule=Host(`nexus.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.nexus.entrypoints=websecure"
+      - "traefik.http.routers.nexus.tls=true"
+      - "traefik.http.routers.nexus.tls.certresolver=staging"
+      - "traefik.http.services.nexus.loadbalancer.server.port=8081"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:8081/service/rest/v1/status || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     networks:
-      - proxy
+      - proxy-net
 
 volumes:
   nexus-data:
     name: "nexus-data"
 
 networks:
-  proxy:
-    name: "proxy"
+  proxy-net:
+    name: "proxy-net"
     external: true

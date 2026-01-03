@@ -6,16 +6,19 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
       - --storage.tsdb.retention.size=10GB
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.phumlaniarendse.co.za`)"
-      - "traefik.http.routers.prometheus.entrypoints=websecure"
-      - "traefik.http.routers.prometheus.tls=true"
-      - "traefik.http.routers.prometheus.tls.certresolver=staging" # Your resolver name
-      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.prometheus.rule=Host(`prometheus.phumlaniarendse.co.za`)"
+    #   - "traefik.http.routers.prometheus.entrypoints=websecure"
+    #   - "traefik.http.routers.prometheus.tls=true"
+    #   - "traefik.http.routers.prometheus.tls.certresolver=staging" # Your resolver name
+    #   - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    #   - "traefik.docker.network=proxy-net"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         [
@@ -112,6 +115,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`grafana.phumlaniarendse.co.za`)"
       - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
       - "traefik.http.routers.grafana.tls.certresolver=staging"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     environment:
@@ -155,6 +159,37 @@ services:
     restart: unless-stopped
     networks:
       - microservices-net
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    network_mode: host
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc|rootfs)($$|/)"
+      - "--collector.netclass.ignored-devices=^(lo|docker.*|veth.*)$$"
+      - "--no-collector.ipvs"
+    user: nobody:nobody
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.node-exporter.entrypoints=websecure" # Assumes you have a 'websecure' entrypoint on :443
+      - "traefik.http.routers.node-exporter.tls=true"
+      - "traefik.http.routers.node-exporter.tls.certresolver=staging"
+      - "traefik.http.services.node-exporter.loadbalancer.server.port=9100"
+      - "traefik.http.services.node-exporter.loadbalancer.server.url=http://127.0.0.1:9100"
 
 #  postgres_api_gateway_exporter:
 #    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
