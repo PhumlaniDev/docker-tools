@@ -10,25 +10,19 @@ services:
       - ALL
     mem_limit: 256m
     cpus: "0.5"
-
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - dozzle-data:/data
-
     environment:
       - DOZZLE_LEVEL=warn
       - TZ=Africa/Johannesburg
-
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy-net"
-
       - "traefik.http.routers.dozzle.rule=Host(`dozzle.phumlaniarendse.co.za`)"
       - "traefik.http.routers.dozzle.entrypoints=websecure"
       - "traefik.http.routers.dozzle.tls=true"
-
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
-
     healthcheck:
       test: ["CMD", "/dozzle", "healthcheck"]
       interval: 3s

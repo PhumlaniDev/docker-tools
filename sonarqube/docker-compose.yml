@@ -1,0 +1,70 @@
+services:
+  sonarqube:
+    image: sonarqube:${SONAR_VERSION}
+    container_name: sonarqube
+    env_file:
+      - .env
+    depends_on:
+      - db
+    environment:
+      SONAR_JDBC_URL: ${SONAR_JDBC_URL}
+      SONAR_JDBC_USERNAME: ${POSTGRES_USER}
+      SONAR_JDBC_PASSWORD: ${POSTGRES_PASSWORD}
+      SONAR_JDBC_JAVAOPTS: "-Xms1g -Xmx1g"
+      SONAR_WEB_JAVAOPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - ./volumes/sonarqube_data:/opt/sonarqube/data
+      - ./volumes/sonarqube_extensions:/opt/sonarqube/extensions
+      - ./volumes/sonarqube_logs:/opt/sonarqube/logs
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarqube.rule=Host(`sonarqube.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.sonarqube.entrypoints=websecure"
+      - "traefik.http.routers.sonarqube.service=sonarqube"
+      - "traefik.http.routers.sonarqube.tls=true"
+      - "traefik.http.routers.sonarqube.tls.certresolver=staging"
+      - "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
+      - "traefik.docker.network=proxy-net"
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -f http://localhost:9000/api/health || exit 1"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 5
+    restart: unless-stopped
+    networks:
+      - proxy-net
+      - sonar
+
+  db:
+    image: postgres:15-alpine
+    container_name: sonarqube_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    env_file:
+      - .env
+    volumes:
+      - ./volumes/postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - sonar
+
+networks:
+  proxy-net:
+    external: true
+    name: proxy-net
+  sonar:
+    external: true
+    name: sonar
