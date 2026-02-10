@@ -14,21 +14,17 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - dozzle-data:/data
     environment:
-      - DOZZLE_LEVEL=warn
+      - DOZZLE_LEVEL=info
       - TZ=Africa/Johannesburg
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=proxy-net"
       - "traefik.http.routers.dozzle.rule=Host(`dozzle.phumlaniarendse.co.za`)"
       - "traefik.http.routers.dozzle.entrypoints=websecure"
+      - "traefik.http.routers.dozzle.service=dozzle"
       - "traefik.http.routers.dozzle.tls=true"
+      - "traefik.http.routers.dozzle.tls.certresolver=staging"
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
-    healthcheck:
-      test: ["CMD", "/dozzle", "healthcheck"]
-      interval: 3s
-      timeout: 30s
-      retries: 5
-      start_period: 30s
+      - "traefik.docker.network=proxy-net"
 
     networks:
       - proxy-net

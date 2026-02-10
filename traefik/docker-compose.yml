@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: traefik:v3.6.5
+    image: traefik:v3.6.6
     container_name: traefik
     restart: always
     security_opt:
@@ -13,7 +13,6 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
-      - ./certs:/certs:ro
       - ./letsencrypt:/letsencrypt
       - ./logs:/logs
     networks:
@@ -26,7 +25,9 @@ services:
       - "traefik.http.routers.traefik.tls=true"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.tls.certresolver=staging"
-      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_USER}:${TRAEFIK_PASSWORD}"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${BASIC_AUTH_USERS}"
 
 networks:
   proxy-net:

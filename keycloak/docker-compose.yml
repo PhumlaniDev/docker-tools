@@ -20,7 +20,7 @@ services:
       retries: 5
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.1.4
+    image: quay.io/keycloak/keycloak:26.5.2
     container_name: keycloak
     command: start-dev
     environment:
@@ -31,10 +31,14 @@ services:
       KC_DB_PASSWORD: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_FEATURES: scripts
+      KC_HOSTNAME: keycloak.phumlaniarendse.co.za          # your public domain
+      KC_HOSTNAME_STRICT: true                             # enforce it (default in prod anyway)
+      KC_HOSTNAME_STRICT_HTTPS: true                       # force HTTPS scheme
+      KC_PROXY_HEADERS: xforwarded                         # Traefik uses X-Forwarded-*
+      KC_HTTP_ENABLED: false                               # disable plain HTTP listener in prod
+      KC_FEATURES: scripts                                 # if you still need custom scripts
       KC_SPI_SCRIPT_UPLOAD_ENABLED: "true"
-    ports:
-      - "8080:8080"
+      KC_METRICS_ENABLED: true
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,6 +47,16 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`keycloak.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.service=keycloak"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.routers.keycloak.tls.certresolver=staging"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+      - "traefik.docker.network=proxy-net"
 
 volumes:
   postgres_data:
@@ -54,3 +68,6 @@ networks:
   backend:
     name: "backend"
     driver: bridge
+  proxy-net:
+    name: "proxy-net"
+    external: true

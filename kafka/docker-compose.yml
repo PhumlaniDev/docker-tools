@@ -49,7 +49,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
-
     networks:
       - microservices-net
 
@@ -64,15 +63,18 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
       DYNAMIC_CONFIG_ENABLED: 'true'
-    ports:
-      - "8083:8080"
+#    ports:
+#      - "8083:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kafka-ui.rule=Host(`kafka-ui.phumlaniarendse.co.za`)"
+      - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
+      - "traefik.http.routers.kafka-ui.entrypoints=websecure"
+      - "traefik.http.routers.kafka-ui.tls.certresolver=staging"
+      - "traefik.http.routers.kafka-ui.service=kafka-ui"
+      - "traefik.docker.network=proxy-net"
+      - "traefik.http.routers.kafka-ui.tls=true"
     restart: unless-stopped
-    healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health", "||", "exit", "1" ]
-      interval: 10s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     networks:
       - microservices-net
 
