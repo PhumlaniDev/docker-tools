@@ -1,3 +1,7 @@
+secrets:
+  discord_webhook:
+    file: ./alertmanager/alertmanager-secrets/discord-webhook-url
+
 services:
   prometheus:
     image: prom/prometheus:latest
@@ -27,12 +31,17 @@ services:
   alertmanager:
     image: prom/alertmanager:latest
     container_name: alertmanager
+    env_file:
+      - .env
+    secrets:
+      - discord_webhook
     restart: unless-stopped
     command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
-      - --storage.path=/data
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/data"
     volumes:
       - ./alertmanager/config:/etc/alertmanager:ro
+      # - ./alertmanager/alertmanager-secrets:/etc/alertmanager/secrets:ro
       - alertmanager-data:/data
     networks:
       - microservices-net
@@ -45,6 +54,14 @@ services:
     volumes:
       - ./loki/config/loki.yml:/etc/loki/config/loki.yml:ro
       - loki-data:/loki
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`loki.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls=true"
+      - "traefik.http.routers.loki.tls.certresolver=staging" # Your resolver name
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+      - "traefik.docker.network=proxy-net"
     networks:
       - microservices-net
       - proxy-net
@@ -76,7 +93,7 @@ services:
       - proxy-net
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: cadvisor
     ports:
       - "8300:8080"
@@ -85,14 +102,15 @@ services:
       - /sys:/sys:ro
       - /var/run:/var/run:ro
       - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
+      - /cgroup:/cgroup:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/wsl/docker-desktop-data/data/docker:/var/lib/docker:ro
+    privileged: true
     devices:
       - /dev/kmsg
-    privileged: true
     restart: unless-stopped
     networks:
       - microservices-net
-      - proxy-net
 
   node_exporter:
     image: quay.io/prometheus/node-exporter:latest
@@ -118,13 +136,6 @@ services:
           cpus: "0.5"
     networks:
       - microservices-net
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.node-exporter.entrypoints=websecure" # Assumes you have a 'websecure' entrypoint on :443
-    #   - "traefik.http.routers.node-exporter.tls=true"
-    #   - "traefik.http.routers.node-exporter.tls.certresolver=staging"
-    #   - "traefik.http.services.node-exporter.loadbalancer.server.port=9100"
-    #   - "traefik.http.services.node-exporter.loadbalancer.server.url=http://127.0.0.1:9100"
 
 #  postgres_api_gateway_exporter:
 #    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
@@ -145,9 +156,6 @@ networks:
     external: true
 
 volumes:
-  # alloy-data:
-  #   name: "alloy-data"
-  #   driver: local
   alertmanager-data:
     name: "alertmanager-data"
     driver: local

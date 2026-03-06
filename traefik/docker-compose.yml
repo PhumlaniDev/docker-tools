@@ -2,7 +2,7 @@ services:
   traefik:
     image: traefik:v3.6.6
     container_name: traefik
-    restart: always
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -26,8 +26,6 @@ services:
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.tls.certresolver=staging"
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
-      - "traefik.http.routers.traefik.middlewares=traefik-auth"
-      - "traefik.http.middlewares.traefik-auth.basicauth.users=${BASIC_AUTH_USERS}"
 
 networks:
   proxy-net:
