@@ -137,16 +137,6 @@ services:
     networks:
       - microservices-net
 
-#  postgres_api_gateway_exporter:
-#    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
-#    container_name: postgres_exporter
-#    environment:
-#      DATA_SOURCE_NAME: "postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable"
-#    depends_on:
-#      - postgres-api-gateway
-#    ports:
-#      - "9187:9187"
-
 networks:
   microservices-net:
     name: microservices-net

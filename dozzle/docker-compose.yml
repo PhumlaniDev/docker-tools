@@ -31,6 +31,8 @@ services:
 
 volumes:
   dozzle-data:
+    name: "dozzle_data"
+    driver: local
 
 networks:
   proxy-net:
