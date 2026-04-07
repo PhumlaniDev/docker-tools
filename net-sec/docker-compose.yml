@@ -1,92 +1,103 @@
 services:
-  unbound:
-    image: klutchell/unbound:latest
-    container_name: unbound
-    restart: unless-stopped
-    # depends_on:
-    #   redis:
-    #     condition: service_healthy
-    networks:
-      net_sec:
-        ipv4_address: 10.50.0.10
-    volumes:
-      - ./unbound/config:/etc/unbound/custom.conf.d:ro
+  wireguard:
+    image: ghcr.io/wg-easy/wg-easy:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
     environment:
-      - REDIS_PORT=6379
-    healthcheck:
-      test: ["CMD", "drill", "@127.0.0.1", "example.com"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - WG_HOST=wg.phumlaniarendse.co.za # ← CHANGE THIS
+      - WG_EASY_PASSWORD=Chr1st1@n9432 # ← CHANGE THIS
+      - WG_PORT=51820
+      - WG_DEFAULT_DNS=172.30.0.3 # AdGuard IP — automatically pushed to all clients
+      - WG_DEFAULT_ADDRESS=10.8.0.x
+      - WG_PERSISTENT_KEEPALIVE=25
+      - WG_MTU=1420
+    volumes:
+      - ./wireguard:/etc/wireguard
+    ports:
+      - "51820:51820/udp" # WireGuard port (forward this in your router/firewall)
+      # - "51821:51821/tcp" # Optional: for wg-easy web UI (change to 80:80 if using HTTP)
+    sysctls:
+      # - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+    restart: unless-stopped
+    depends_on:
+      - adguard
+    networks:
+      - dns_net # Give time for interface to come up
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wireguard.rule=Host(`wg.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.wireguard.entrypoints=websecure"
+      - "traefik.http.routers.wireguard.tls=true"
+      - "traefik.http.routers.wireguard.tls.certresolver=staging"
+      - "traefik.http.services.wireguard.loadbalancer.server.port=51821"
+      - "traefik.docker.network=proxy-net"
 
   adguard:
     image: adguard/adguardhome:latest
     container_name: adguard
     restart: unless-stopped
     depends_on:
-      unbound:
-        condition: service_healthy
+      - unbound
     networks:
-      net_sec:
-        ipv4_address: 10.50.0.5
+      - dns_net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adguard.rule=Host(`adguard.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.adguard.entrypoints=websecure"
+      - "traefik.http.routers.adguard.tls=true"
+      - "traefik.http.routers.adguard.tls.certresolver=staging"
+      - "traefik.http.services.adguard.loadbalancer.server.port=80"
+      - "traefik.docker.network=proxy-net"
     volumes:
       - ./adguard/work:/opt/adguardhome/work
       - ./adguard/conf:/opt/adguardhome/conf
     ports:
+      - "3000:3000/tcp" # Admin interface (change to 3000:80 if using HTTP)
+      # - "8082:80/tcp" # HTTP for admin (change to HTTPS in production)
       - "8053:53/tcp" # DNS
       - "8053:53/udp"
-      - "8082:80/tcp" # HTTP for admin (change to HTTPS in production)
-      - "443:443/tcp" # HTTPS for admin
-      - "853:853/tcp" # DNS-over-TLS
-      - "853:853/udp" # DNS-over-QUIC (optional)
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
-  wireguard:
-    image: linuxserver/wireguard:latest
-    container_name: wireguard
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    environment:
-      - PUID=1000 # Your user ID for file permissions
-      - PGID=1000 # Your group ID
-      - TZ=Africa/Johannesburg # Adjust to your timezone, e.g., America/New_York
-      # - SERVERURL=auto # Or your public IP/domain for client configs
-      - SERVERPORT=51820
-      - PEERS=5 # Number of initial client configs to generate
-      - PEERDNS=10.50.0.5 # AdGuard Home's static IP
-      - INTERNAL_SUBNET=10.13.13.0/24 # WireGuard client subnet (avoid conflicts)
-      - ALLOWEDIPS=0.0.0.0/0 # Full tunnel; change to 172.20.0.0/24 for split-tunnel DNS only
-      - LOG_CONFS=true # Log generated configs
-    volumes:
-      - ./wireguard/config:/config
-      - /lib/modules:/lib/modules:ro # For kernel modules if needed
-    ports:
-      - "51820:51820/udp" # WireGuard port (forward this in your router/firewall)
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-    restart: unless-stopped
-    depends_on:
-      adguard:
-        condition: service_healthy
+  unbound:
+    image: klutchell/unbound:latest
+    container_name: unbound
     networks:
-      net_sec:
-        ipv4_address: 10.50.0.2
+      dns_net:
+        ipv4_address: 172.30.0.20
+    volumes:
+      - ./unbound/custom.conf.d:/etc/unbound/custom.conf.d:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    networks:
+      dns_net:
+        ipv4_address: 172.30.0.10
+    volumes:
+      - ./redis/data:/data
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wg show interfaces | grep -q wg0 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s # Give time for interface to come up
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
-  net_sec:
+  dns_net:
+    name: dns_net
     driver: bridge
     ipam:
       config:
-        - subnet: 10.50.0.0/16
+        - subnet: 172.30.0.0/24
+  proxy-net:
+    external: true
+    name: proxy-net

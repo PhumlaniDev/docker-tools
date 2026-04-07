@@ -1,0 +1,124 @@
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    container_name: authentik-postgresql
+    restart: unless-stopped
+    volumes:
+      - authentik_db:/var/lib/postgresql/data
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_period: 20s
+      test:
+        - CMD-SHELL
+        - pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
+      timeout: 5s
+    networks:
+      - microservices-net
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: authentik-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping || PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    networks:
+      - microservices-net
+    volumes:
+      - redis_data:/data
+
+  server:
+    image: ghcr.io/goauthentik/server:2026.2
+    container_name: authentik-server
+    command: server
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - AUTHENTIK_REDIS__HOST=redis
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=${POSTGRES_DB}
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
+      - AUTHENTIK_POSTGRESQL__USER=${POSTGRES_USER}
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik.rule=Host(`authentik.phumlaniarendse.co.za`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls=true"
+      - "traefik.http.routers.authentik.tls.certresolver=staging" # Your resolver name
+      - "traefik.http.routers.authentik.service=authentik"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+      - "traefik.docker.network=proxy-net"
+    networks:
+      - microservices-net
+      - proxy-net
+    # ports:
+    #   - "9000:9000"
+    #   - "9443:9443"
+    restart: unless-stopped
+    shm_size: 512mb
+    volumes:
+      - ./data:/data
+      - ./custom-templates:/templates
+
+  worker:
+    image: ghcr.io/goauthentik/server:2026.2
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - AUTHENTIK_REDIS__HOST=redis
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=${POSTGRES_DB}
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
+      - AUTHENTIK_POSTGRESQL__USER=${POSTGRES_USER}
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY:?secret key required}
+    shm_size: 512mb
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      - ./certs:/certs
+      - ./custom-templates:/templates
+    networks:
+      - microservices-net
+      - proxy-net
+
+volumes:
+  authentik_db:
+    name: "authentik_db"
+    driver: local
+  redis_data:
+    name: "redis_data"
+    driver: local
+
+networks:
+  microservices-net:
+    name: "microservices-net"
+    external: true
+  proxy-net:
+    name: "proxy-net"
+    external: true

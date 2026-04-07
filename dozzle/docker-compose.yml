@@ -1,8 +1,14 @@
 services:
   dozzle:
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:v10
     container_name: dozzle
     restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 60s
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -25,7 +31,12 @@ services:
       - "traefik.http.routers.dozzle.tls.certresolver=staging"
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
       - "traefik.docker.network=proxy-net"
-
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     networks:
       - proxy-net
 
